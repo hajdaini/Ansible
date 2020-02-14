@@ -1,0 +1,67 @@
+---
+# tasks file for web
+- name: install apache and php last version for (Debian os family)
+  apt:
+    name: ['apache2', 'php', 'php-mysql']
+    state: present
+    update_cache: yes
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: install extra packages (Debian os family)
+  apt:
+    name: "{{ extra_packages_debian }}"
+    state: present
+  when: ansible_facts['os_family'] == "Debian" and extra_packages_debian is defined
+
+- name: install apache and php last version for (RedHat os family)
+  yum:
+    name: ['httpd', 'php', 'php-mysqlnd']
+    state: present
+    update_cache: yes
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: install extra packages (RedHat os family)
+  yum:
+    name: "{{ extra_packages_redhat }}"
+    state: present
+  when: ansible_facts['os_family'] == "RedHat" and extra_packages_redhat is defined
+
+
+- name: Give writable mode to http folder
+  file:
+    path: /var/www/html
+    state: directory
+    mode: '0755'
+
+- name: remove default index.html
+  file:
+    path: /var/www/html/index.html
+    state: absent
+
+- name: upload web app source
+  copy:
+    src: app/
+    dest: /var/www/html/
+
+- name: deploy php database config
+  template:
+    src: "db-config.php.j2"
+    dest: "/var/www/html/db-config.php"
+
+- name: ensure apache service is start (Debian os family)
+  service:
+    name: apache2
+    state: started
+    enabled: yes
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: ensure apache service is start (RedHat os family)
+  service:
+    name: httpd
+    state: started
+    enabled: yes
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: enable connection with remote database (RedHat os family)
+  shell: setsebool -P httpd_can_network_connect_db 1
+  when: ansible_facts['os_family'] == "RedHat"

@@ -1,0 +1,11 @@
+---
+# handlers file for database
+- name: Restart mysql # Debian os family
+  service:
+    name: mysql
+    state: restarted
+
+- name: Restart mysqld # RedHat os family
+  service:
+    name: mysqld
+    state: restarted

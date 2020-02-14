@@ -1,0 +1,4 @@
+[web]
+slave-1 ansible_user=vagrant
+[db]
+slave-2 ansible_user=vagrant

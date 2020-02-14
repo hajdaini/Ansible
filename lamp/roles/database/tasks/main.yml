@@ -1,0 +1,161 @@
+---
+# tasks file for database
+- name: install mysql (Debian os family)
+  apt:
+    name: 
+      - mysql-server
+      - python-mysqldb # for mysql_db and mysql_user modules
+    state: present
+    update_cache: yes  
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: install mysql repo (Fedora)
+  yum:
+    name: "http://repo.mysql.com/mysql80-community-release-fc{{ ansible_facts['distribution_major_version'] }}.rpm"
+    state: present
+    update_cache: yes  
+  when: ansible_facts['distribution'] == "Fedora"
+
+- name: install mysql repo (CENTOS or RedHat)
+  yum:
+    name: "http://repo.mysql.com/mysql80-community-release-el{{ ansible_facts['distribution_major_version'] }}.rpm"
+    state: present
+    update_cache: yes  
+  when: ansible_facts['os_family'] == "RedHat" and ansible_facts['distribution'] != "Fedora"
+
+- name: install mysql package (RedHat os family)
+  yum:
+    name: mysql-community-server
+    state: present
+    disablerepo: mysql80-community
+    enablerepo: mysql57-community
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: install PyMySQL from pip (RedHat os family)
+  pip:
+    name: PyMySQL # for mysql_db and mysql_user modules
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: ensure mysql service is start (Debian os family)
+  service:
+    name: mysql
+    state: started
+    enabled: yes
+  when: ansible_facts['os_family'] == "Debian"
+
+
+- name: ensure mysqld service is start (RedHat os family)
+  service:
+    name: mysqld
+    state: started
+    enabled: yes
+  when: ansible_facts['os_family'] == "RedHat"
+
+
+- name: Allow external MySQL connections (1/2) (Debian os family)
+  lineinfile:
+    path: /etc/mysql/mysql.conf.d/mysqld.cnf
+    regexp: '^skip-external-locking'
+    line: "# skip-external-locking"
+  notify: Restart mysql
+  when: ansible_facts['os_family'] == "Debian"
+
+
+- name: Allow external MySQL connections (2/2) (Debian os family)
+  lineinfile:
+    path: /etc/mysql/mysql.conf.d/mysqld.cnf
+    regexp: '^bind-address'
+    line: "# bind-address"
+  notify: Restart mysql
+  when: ansible_facts['os_family'] == "Debian"
+
+
+- name: check if mysql config is correct (RedHat os only)
+  shell: 'grep "^bind-address" /etc/my.cnf'
+  register: test_grep
+  when: ansible_facts['os_family'] == "RedHat"
+  ignore_errors: yes # dont exit if it doesn't found something
+
+- name: change mysql config (RedHat os only)
+  blockinfile:
+    path: /etc/my.cnf
+    insertafter: EOF
+    block: |
+      default_authentication_plugin=mysql_native_password
+      bind-address=0.0.0.0
+      default_password_lifetime=0
+      validate_password_policy=LOW
+      validate_password_length=6
+      validate_password_number_count=0
+  when: ansible_facts['os_family'] == "RedHat" and test_grep.rc != 0 
+  notify: Restart mysqld
+
+
+- name: Register temporary password (RedHat os family)
+  shell: "grep 'temporary password' /var/log/mysqld.log  | awk '{print $(NF)}'"
+  register: password_tmp
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Set default root user password (RedHat os family)
+  set_fact:
+    default_root_password: '{{ password_tmp.stdout }}'
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Change root SQL password and GRANT root privileges (RedHat os family)
+  command: "mysql --user=root --password={{ default_root_password }} --connect-expired-password   --execute=\"ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ root_password }}'; grant all privileges on *.* to 'root'@'localhost' with grant option;\""
+  ignore_errors: yes # ignore errors because we only change mysql root password once
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Create MySQL client config (Debian os family)
+  copy:
+    dest: "/root/.my.cnf"
+    content: |
+      [client]
+      user=root
+      password={{ root_password }}
+    mode: 0400  
+  when: ansible_facts['os_family'] == "Debian"
+
+
+- name: upload sql table config
+  template:
+    src: "table.sql.j2"
+    dest: "/tmp/table.sql"
+
+
+- name: add sql table to database
+  mysql_db:
+    name: "{{ mysql_dbname }}"
+    state: present
+    login_user: root
+    login_password: '{{ root_password }}'
+    state: import 
+    target: /tmp/table.sql
+
+
+- name: "Create {{ mysql_user }} with all {{ mysql_dbname }} privileges (Debian os family)"
+  mysql_user:
+    name: "{{ mysql_user }}"
+    password: "{{ mysql_password }}"
+    priv: "{{ mysql_dbname }}.*:ALL"
+    host: "{{ webserver_host }}"
+    state: present
+    login_user: root
+    login_password: '{{ root_password }}'
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+  when: ansible_facts['os_family'] == "Debian"
+  notify: Restart mysql
+
+
+- name: "Create {{ mysql_user }} with all {{ mysql_dbname }} privileges (RedHat os family)"
+  mysql_user:
+    name: "{{ mysql_user }}"
+    password: "{{ mysql_password }}"
+    priv: "{{ mysql_dbname }}.*:ALL"
+    host: "{{ webserver_host }}"
+    state: present
+    login_user: root
+    login_password: '{{ root_password }}'
+    login_unix_socket: /var/lib/mysql/mysql.sock
+  when: ansible_facts['os_family'] == "RedHat"
+  notify: Restart mysqld

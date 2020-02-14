@@ -1,0 +1,6 @@
+---
+mysql_dbname: "blog"
+webserver_host: "192.168.0.21"
+db_host: "192.168.0.22"
+extra_packages_debian: ['php-curl', 'php-gd', 'php-mbstring'] 
+extra_packages_redhat: ['php-xml', 'php-gd', 'php-mbstring'] 
