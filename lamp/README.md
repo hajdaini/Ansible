@@ -43,7 +43,7 @@ Usage
   
 Result of the web page :
 
-![home page](home_page.jpg)
+![home page](../images/home_page.jpg)
 
 License
 -------
