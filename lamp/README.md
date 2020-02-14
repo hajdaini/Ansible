@@ -40,6 +40,10 @@ Usage
   ```sh
   ansible-playbook playbook.yml --ask-vault-pass
   ```  
+  
+Result of the web page :
+
+![home page](home_page.jpg)
 
 License
 -------
