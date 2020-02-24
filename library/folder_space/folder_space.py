@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from ansible.module_utils.basic import *
-import subprocess
+import os
 
 size_conversion = { "k": 1024, "m": pow(1024,2), "g": pow(1024,3), "t": pow(1024,4), "p": pow(1024,5) }
 
