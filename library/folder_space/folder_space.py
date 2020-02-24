@@ -39,7 +39,7 @@ def getAvailableSpace(module, path):
     try:
         statvfs = os.statvfs(path)
         return int(statvfs.f_bavail * statvfs.f_frsize)
-    except OSError, e:
+    except OSError as e:
         module.fail_json(msg="{}".format(e))
 
 
